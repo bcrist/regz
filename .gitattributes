@@ -1,2 +1,3 @@
 *.zig text eol=lf
+gyro.zzz text eol=lf
 .gyro/** linguist-vendored

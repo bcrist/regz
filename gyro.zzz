@@ -4,6 +4,11 @@ deps:
       url: "https://github.com/Hejsil/zig-clap.git"
       ref: master
       root: clap.zig
+  Zig-SX:
+    git:
+      url: "https://github.com/bcrist/Zig-SX.git"
+      ref: main
+      root: sx.zig
 build_deps:
   libxml2:
     git:

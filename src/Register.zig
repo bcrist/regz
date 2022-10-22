@@ -7,6 +7,7 @@ size: ?u16 = null,
 access: ?@import("svd.zig").Access = null,
 reset_value: ?u64 = null,
 reset_mask: ?u64 = null,
+type_override: ?[]const u8 = null,
 
 pub fn format(
     register: @This(),

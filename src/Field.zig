@@ -3,6 +3,7 @@ description: ?[]const u8 = null,
 offset: u8,
 width: u8,
 access: ?@import("svd.zig").Access = null,
+type_override: ?[]const u8 = null,
 
 pub fn lessThan(_: void, lhs: @This(), rhs: @This()) bool {
     return if (lhs.offset == rhs.offset)

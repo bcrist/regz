@@ -24,6 +24,7 @@ pub const Device = struct {
         reset_value: ?u64 = null,
         reset_mask: ?u64 = null,
     },
+    rt_import: ?[]const u8 = null,
 
     pub fn parse(arena: *ArenaAllocator, nodes: *xml.Node) !Device {
         const allocator = arena.allocator();

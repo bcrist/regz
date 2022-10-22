@@ -14,7 +14,15 @@ pub const pkgs = struct {
         },
     };
 
+    pub const @"Zig-SX" = Pkg{
+        .name = "Zig-SX",
+        .source = FileSource{
+            .path = ".gyro/Zig-SX-bcrist-github.com-b6fecc5d/pkg/sx.zig",
+        },
+    };
+
     pub fn addAllTo(artifact: *std.build.LibExeObjStep) void {
         artifact.addPackage(pkgs.clap);
+        artifact.addPackage(pkgs.@"Zig-SX");
     }
 };
