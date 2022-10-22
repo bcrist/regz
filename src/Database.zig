@@ -1045,7 +1045,7 @@ fn genZigSingleRegister(
                     std.zig.fmtId(name),
                     array_prefix,
                     width,
-                    std.zig.fmtId(type_name),
+                    fmtIdChain(type_name),
                     addr_offset,
                 })
             else
@@ -1053,14 +1053,14 @@ fn genZigSingleRegister(
                     std.zig.fmtId(name),
                     array_prefix,
                     width,
-                    std.zig.fmtId(type_name),
+                    fmtIdChain(type_name),
                     addr_offset,
                 }),
             .contained => try writer.print("{s}: {s}Mmio({}, rt.{s}),\n", .{
                 std.zig.fmtId(name),
                 array_prefix,
                 width,
-                std.zig.fmtId(type_name),
+                fmtIdChain(type_name),
             }),
         }
     } else if (field_range_opt) |field_range| {
@@ -1232,7 +1232,7 @@ fn genZigFields(
                 .list => |list| for (list.items) |entry| {
                     const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", entry);
                     if (field.type_override) |type_name| {
-                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
+                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), fmtIdChain(type_name) });
                     } else {
                         try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                     }
@@ -1244,7 +1244,7 @@ fn genZigFields(
                         const idx = try std.fmt.allocPrint(db.arena.allocator(), "{}", .{i});
                         const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", idx);
                         if (field.type_override) |type_name| {
-                            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
+                            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), fmtIdChain(type_name) });
                         } else {
                             try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                         }
@@ -1257,7 +1257,7 @@ fn genZigFields(
                     const num_str = try std.fmt.allocPrint(db.arena.allocator(), "{}", .{i});
                     const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", num_str);
                     if (field.type_override) |type_name| {
-                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
+                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), fmtIdChain(type_name) });
                     } else {
                         try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                     }
@@ -1318,7 +1318,7 @@ fn genZigFields(
         };
 
         if (field.type_override) |type_name| {
-            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(field.name), std.zig.fmtId(type_name) });
+            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(field.name), fmtIdChain(type_name) });
         } else {
             try writer.print("{s}: u{},\n", .{ std.zig.fmtId(field.name), field.width });
         }
@@ -1777,4 +1777,47 @@ pub fn format(
         for (db.fields.items) |field, i|
             try writer.print("    {}: {}\n", .{ i, field });
     }
+}
+
+fn formatIdChain(
+    bytes: []const u8,
+    comptime fmt: []const u8,
+    options: std.fmt.FormatOptions,
+    writer: anytype,
+) !void {
+    _ = fmt;
+    _ = options;
+    var first = true;
+    var iter = std.mem.split(u8, bytes, ".");
+    while (iter.next()) |segment| {
+        if (first) {
+            first = false;
+        } else {
+            try writer.writeByte('.');
+        }
+        if (std.zig.isValidId(segment)) {
+            try writer.writeAll(segment);
+        } else {
+            try writer.writeAll("@\"");
+            for (segment) |byte| switch (byte) {
+                '\n' => try writer.writeAll("\\n"),
+                '\r' => try writer.writeAll("\\r"),
+                '\t' => try writer.writeAll("\\t"),
+                '\\' => try writer.writeAll("\\\\"),
+                '"' => try writer.writeAll("\\\""),
+                '\'' => try writer.writeByte('\''),
+                ' ', '!', '#'...'&', '('...'[', ']'...'~' => try writer.writeByte(byte),
+                // Use hex escapes for rest any unprintable characters.
+                else => {
+                    try writer.writeAll("\\x");
+                    try std.fmt.formatInt(byte, 16, .lower, .{ .width = 2, .fill = '0' }, writer);
+                },
+            };
+            try writer.writeByte('"');
+        }
+    }
+}
+
+pub fn fmtIdChain(bytes: []const u8) std.fmt.Formatter(formatIdChain) {
+    return .{ .data = bytes };
 }
