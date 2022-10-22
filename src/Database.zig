@@ -1045,7 +1045,7 @@ fn genZigSingleRegister(
                     std.zig.fmtId(name),
                     array_prefix,
                     width,
-                    type_name,
+                    std.zig.fmtId(type_name),
                     addr_offset,
                 })
             else
@@ -1053,14 +1053,14 @@ fn genZigSingleRegister(
                     std.zig.fmtId(name),
                     array_prefix,
                     width,
-                    type_name,
+                    std.zig.fmtId(type_name),
                     addr_offset,
                 }),
             .contained => try writer.print("{s}: {s}Mmio({}, rt.{s}),\n", .{
                 std.zig.fmtId(name),
                 array_prefix,
                 width,
-                type_name,
+                std.zig.fmtId(type_name),
             }),
         }
     } else if (field_range_opt) |field_range| {
@@ -1232,7 +1232,7 @@ fn genZigFields(
                 .list => |list| for (list.items) |entry| {
                     const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", entry);
                     if (field.type_override) |type_name| {
-                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), type_name });
+                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
                     } else {
                         try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                     }
@@ -1244,7 +1244,7 @@ fn genZigFields(
                         const idx = try std.fmt.allocPrint(db.arena.allocator(), "{}", .{i});
                         const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", idx);
                         if (field.type_override) |type_name| {
-                            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), type_name });
+                            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
                         } else {
                             try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                         }
@@ -1257,7 +1257,7 @@ fn genZigFields(
                     const num_str = try std.fmt.allocPrint(db.arena.allocator(), "{}", .{i});
                     const name = try std.mem.replaceOwned(u8, db.arena.allocator(), field.name, "%s", num_str);
                     if (field.type_override) |type_name| {
-                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), type_name });
+                        try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(name), std.zig.fmtId(type_name) });
                     } else {
                         try writer.print("{s}: u{},\n", .{ std.zig.fmtId(name), field.width });
                     }
@@ -1318,7 +1318,7 @@ fn genZigFields(
         };
 
         if (field.type_override) |type_name| {
-            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(field.name), type_name });
+            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(field.name), std.zig.fmtId(type_name) });
         } else {
             try writer.print("{s}: u{},\n", .{ std.zig.fmtId(field.name), field.width });
         }
