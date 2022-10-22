@@ -882,6 +882,38 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
             }
 
             try writer.writeAll("};\n");
+
+            try writer.writeAll("\npub const InterruptType = enum {\n");
+
+            if (cpu_type != .avr) {
+                // this is an arm machine
+                try writer.writeAll(
+                    \\    NMI = -10,
+                    \\    HardFault = -11,
+                    \\    SVCall = -12,
+                    \\    PendSV = -13,
+                    \\    SysTick = -14,
+                    \\
+                );
+
+                switch (cpu_type) {
+                    // Cortex M23 has a security extension and when implemented
+                    // there are two vector tables (same layout though)
+                    .cortex_m0, .cortex_m0plus, .cortex_m23 => {},
+                    .sc300, .cortex_m3, .cortex_m4, .cortex_m7, .cortex_m33 => try writer.writeAll(
+                        \\    MemManage = -15,
+                        \\    BusFault = -16,
+                        \\    UsageFault = -17,
+                    ),
+                    else => std.log.err("unhandled cpu type: {}", .{cpu_type}),
+                }
+            }
+
+            for (db.interrupts.items) |interrupt| {
+                try writer.print("    {s} = {},\n", .{ std.zig.fmtId(interrupt.name), interrupt.value });
+            }
+
+            try writer.writeAll("};\n");
         }
     }
 
