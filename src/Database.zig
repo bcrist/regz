@@ -1062,193 +1062,63 @@ fn genZigSingleRegister(
     db: *Database,
     writer: anytype,
     name: []const u8,
-    width: u32,
+    register: Register,
     has_base_addr: bool,
     addr_offset: u64,
     field_range_opt: ?IndexRange(FieldIndex),
     array_prefix: []const u8,
     nesting: Nesting,
-    type_override: ?[]const u8,
 ) !void {
-    if (type_override) |type_name| {
-        switch (nesting) {
-            .namespaced => if (has_base_addr)
-                try writer.print("pub const {s} = @intToPtr(*volatile {s}Mmio({}, rt.{s}), base_address + 0x{x});\n", .{
-                    std.zig.fmtId(name),
-                    array_prefix,
-                    width,
-                    fmtIdChain(type_name),
-                    addr_offset,
-                })
-            else
-                try writer.print("pub const {s} = @intToPtr(*volatile {s}Mmio({}, rt.{s}), 0x{x});\n", .{
-                    std.zig.fmtId(name),
-                    array_prefix,
-                    width,
-                    fmtIdChain(type_name),
-                    addr_offset,
-                }),
-            .contained => try writer.print("{s}: {s}Mmio({}, rt.{s}),\n", .{
-                std.zig.fmtId(name),
-                array_prefix,
-                width,
-                fmtIdChain(type_name),
-            }),
-        }
+    switch (nesting) {
+        .namespaced => try writer.print("pub const {s} = @intToPtr(*volatile ", .{ std.zig.fmtId(name)}),
+        .contained => try writer.print("{s}: ", .{ std.zig.fmtId(name)}),
+    }
+
+    if (register.type_override) |type_name| {
+        try writer.print("{s}Mmio({}, rt.{s})", .{ array_prefix, register.size.?, fmtIdChain(type_name) });
     } else if (field_range_opt) |field_range| {
         const fields = db.fields.items[field_range.begin..field_range.end];
         assert(fields.len != 0);
 
         if (fields.len == 1 and std.mem.eql(u8, fields[0].name, name)) {
-            if (fields[0].width > width)
+            if (fields[0].width > register.size.?) {
                 return error.BadWidth;
+            }
 
-            if (fields[0].width == width)
-                // TODO: oof please refactor this
-                switch (nesting) {
-                    .namespaced => if (has_base_addr)
-                        try writer.print("pub const {s} = @intToPtr(*volatile {s}u{}, base_address + 0x{x});\n", .{
-                            std.zig.fmtId(name),
-                            array_prefix,
-                            width,
-                            addr_offset,
-                        })
-                    else
-                        try writer.print("pub const {s} = @intToPtr(*volatile {s}u{}, 0x{x});\n", .{
-                            std.zig.fmtId(name),
-                            array_prefix,
-                            width,
-                            addr_offset,
-                        }),
-                    .contained => try writer.print("{s}: {s}u{},\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        width,
-                    }),
-                }
-            else switch (nesting) {
-                .namespaced => if (has_base_addr)
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}MmioInt({}, u{}), base_address + 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        width,
-                        fields[0].width,
-                        addr_offset,
-                    })
-                else
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}MmioInt({}, u{}), 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        width,
-                        fields[0].width,
-                        addr_offset,
-                    }),
-                .contained => try writer.print("{s}: {s}MmioInt({}, u{}),\n", .{
-                    std.zig.fmtId(name),
-                    array_prefix,
-                    width,
-                    fields[0].width,
-                }),
+            if (fields[0].width == register.size.?) {
+                try writer.print("{s}u{}", .{ array_prefix, register.size.? });
+            } else {
+                try writer.print("{s}MmioInt({}, u{})", .{ array_prefix, register.size.?, fields[0].width });
             }
         } else {
-            switch (nesting) {
-                .namespaced => try writer.print("pub const {s} = @intToPtr(*volatile {s}Mmio({}, packed struct {{\n", .{
-                    std.zig.fmtId(name),
-                    array_prefix,
-                    width,
-                }),
-                .contained => try writer.print("{s}: {s}Mmio({}, packed struct {{\n", .{
-                    std.zig.fmtId(name),
-                    array_prefix,
-                    width,
-                }),
-            }
-
-            try db.genZigFields(
-                writer,
-                width,
-                fields,
-                field_range.begin,
-            );
-
-            switch (nesting) {
-                .namespaced => if (has_base_addr)
-                    try writer.print("}}), base_address + 0x{x});\n", .{addr_offset})
-                else
-                    try writer.print("}}), 0x{x});\n", .{addr_offset}),
-                .contained => try writer.writeAll("}),\n"),
-            }
+            try writer.print("{s}Mmio({}, packed struct {{\n", .{ array_prefix, register.size.? });
+            try db.genZigFields(writer, register, fields, field_range.begin);
+            try writer.writeAll("})");
         }
+    } else if (register.size.? >= 8 and std.math.isPowerOfTwo(register.size.?)) {
+        try writer.print("{s}u{}", .{ array_prefix, register.size.? });
     } else {
-        switch (nesting) {
-            .namespaced => if (has_base_addr)
-                if (width >= 8 and std.math.isPowerOfTwo(width))
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}u{}, base_address + 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        width,
-                        addr_offset,
-                    })
-                else {
-                    const reg_width = reg_width: {
-                        var reg_width: usize = 8;
-                        while (reg_width < width) : (reg_width *= 2) {
-                            if (reg_width > 128)
-                                return error.TooBig; // artificial limit, probably something weird going on
-                        }
-
-                        break :reg_width reg_width;
-                    };
-
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}MmioInt({}, u{}), base_address + 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        reg_width,
-                        width,
-                        addr_offset,
-                    });
-                }
-            else {
-                if (width >= 8 and std.math.isPowerOfTwo(width))
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}u{}, 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        width,
-                        addr_offset,
-                    })
-                else {
-                    const reg_width = reg_width: {
-                        var reg_width: usize = 8;
-                        while (reg_width < width) : (reg_width *= 2) {
-                            if (reg_width > 128)
-                                return error.TooBig; // artificial limit, probably something weird going on
-                        }
-
-                        break :reg_width reg_width;
-                    };
-
-                    try writer.print("pub const {s} = @intToPtr(*volatile {s}MmioInt({}, u{}), 0x{x});\n", .{
-                        std.zig.fmtId(name),
-                        array_prefix,
-                        reg_width,
-                        width,
-                        addr_offset,
-                    });
-                }
-            },
-            .contained => try writer.print("{s}: {s}u{},\n", .{
-                std.zig.fmtId(name),
-                array_prefix,
-                width,
-            }),
-        }
+        const reg_width = try std.math.ceilPowerOfTwo(u16, register.size.?);
+        try writer.print("{s}MmioInt({}, u{})", .{ array_prefix, reg_width, register.size.? });
     }
+
+    switch (nesting) {
+        .contained => try writer.writeAll(",\n"),
+        .namespaced => {
+            if (has_base_addr) {
+                try writer.print(", base_address + 0x{x});\n", .{ addr_offset });
+            } else {
+                try writer.print(", 0x{x});\n", .{ addr_offset });
+            }
+        },
+    }
+
 }
 
 fn genZigFields(
     db: *Database,
     writer: anytype,
-    reg_width: usize,
+    register: Register,
     fields: []Field,
     first_field_idx: FieldIndex,
 ) !void {
@@ -1315,13 +1185,13 @@ fn genZigFields(
             try writer.print("_reserved{}: u1 = undefined,\n", .{expected_bit});
         }
 
-        if (expected_bit + field.width > reg_width) {
+        if (expected_bit + field.width > register.size.?) {
             for (fields[offset..]) |ignored| {
                 std.log.warn("field '{s}' ({}-{}) in register is outside word size: {}", .{
                     ignored.name,
                     ignored.offset,
                     ignored.offset + ignored.width,
-                    reg_width,
+                    register.size.?,
                 });
             }
             break;
@@ -1332,14 +1202,14 @@ fn genZigFields(
         else
             null;
 
-        // TODO: default values?
-        if (field.description) |description|
+        if (field.description) |description| {
             if (!useless_descriptions.has(description)) {
                 try writeDescription(db.arena.child_allocator, writer, description);
                 if (enumerations_opt != null) {
                     try writer.writeAll("///\n");
                 }
-            };
+            }
+        }
 
         if (enumerations_opt) |enumerations| for (enumerations) |enumeration| {
             try writer.print("/// 0x{x}: ", .{enumeration.value});
@@ -1350,15 +1220,28 @@ fn genZigFields(
         };
 
         if (field.type_override) |type_name| {
-            try writer.print("{s}: rt.{s},\n", .{ std.zig.fmtId(field.name), fmtIdChain(type_name) });
+            try writer.print("{s}: rt.{s}", .{ std.zig.fmtId(field.name), fmtIdChain(type_name) });
         } else {
-            try writer.print("{s}: u{},\n", .{ std.zig.fmtId(field.name), field.width });
+            try writer.print("{s}: u{}", .{ std.zig.fmtId(field.name), field.width });
         }
+
+        const mask = (@as(u64, 1) << @intCast(u6, field.width)) - 1;
+        if (0 != (((register.reset_mask orelse 0) >> @intCast(u6, expected_bit)) & mask)) {
+            var reset_value: u64 = ((register.reset_value orelse 0) >> @intCast(u6, expected_bit)) & mask;
+
+            if (field.type_override) |type_name| {
+                try writer.print(" = rt.{s}.fromInt(0x{X})", .{ fmtIdChain(type_name), reset_value });
+            } else {
+                try writer.print(" = 0x{X}", .{ reset_value });
+            }
+        }
+
+        try writer.writeAll(",\n");
 
         expected_bit += field.width;
     }
 
-    while (expected_bit < reg_width) : (expected_bit += 1) {
+    while (expected_bit < register.size.?) : (expected_bit += 1) {
         try writer.print("_reserved{}: u1 = undefined,\n", .{expected_bit});
     }
 }
@@ -1413,7 +1296,7 @@ fn genZigRegister(
             try db.genZigSingleRegister(
                 writer,
                 name,
-                register.size.?,
+                register,
                 base_addr != null,
                 if (nesting == .namespaced)
                     if (cluster_offset) |offset|
@@ -1425,7 +1308,6 @@ fn genZigRegister(
                 field_range,
                 "",
                 nesting,
-                register.type_override,
             );
         }
 
@@ -1459,7 +1341,7 @@ fn genZigRegister(
             try db.genZigSingleRegister(
                 writer,
                 name,
-                register.size.?,
+                register,
                 base_addr != null,
                 if (nesting == .namespaced)
                     if (cluster_offset) |offset|
@@ -1471,7 +1353,6 @@ fn genZigRegister(
                 field_range,
                 "",
                 nesting,
-                register.type_override,
             );
         }
 
@@ -1526,7 +1407,7 @@ fn genZigRegister(
         try db.genZigSingleRegister(
             writer,
             name,
-            register.size.?,
+            register,
             base_addr != null,
             if (nesting == .namespaced)
                 if (cluster_offset) |offset|
@@ -1538,7 +1419,6 @@ fn genZigRegister(
             field_range,
             array_prefix,
             nesting,
-            register.type_override,
         );
 
         return;
