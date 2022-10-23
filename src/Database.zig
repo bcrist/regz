@@ -1182,7 +1182,8 @@ fn genZigFields(
         }
 
         while (expected_bit < field.offset) : (expected_bit += 1) {
-            try writer.print("_reserved{}: u1 = undefined,\n", .{expected_bit});
+            const default_value: u1 = @truncate(u1, (register.reset_value orelse 0) >> @intCast(u6, expected_bit));
+            try writer.print("_reserved{}: u1 = {},\n", .{ expected_bit, default_value });
         }
 
         if (expected_bit + field.width > register.size.?) {
@@ -1242,7 +1243,8 @@ fn genZigFields(
     }
 
     while (expected_bit < register.size.?) : (expected_bit += 1) {
-        try writer.print("_reserved{}: u1 = undefined,\n", .{expected_bit});
+        const default_value: u1 = @truncate(u1, (register.reset_value orelse 0) >> @intCast(u6, expected_bit));
+        try writer.print("_reserved{}: u1 = {},\n", .{ expected_bit, default_value });
     }
 }
 
