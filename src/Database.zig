@@ -1231,9 +1231,9 @@ fn genZigFields(
             var reset_value: u64 = ((register.reset_value orelse 0) >> @intCast(u6, expected_bit)) & mask;
 
             if (field.type_override) |type_name| {
-                try writer.print(" = rt.{s}.fromInt(0x{X})", .{ fmtIdChain(type_name), reset_value });
+                try writer.print(" = @bitCast(rt.{s}, @as(u{}, {}))", .{ fmtIdChain(type_name), field.width, reset_value });
             } else {
-                try writer.print(" = 0x{X}", .{ reset_value });
+                try writer.print(" = {}", .{ reset_value });
             }
         }
 
