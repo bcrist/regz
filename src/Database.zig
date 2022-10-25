@@ -883,7 +883,7 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
 
             try writer.writeAll("};\n");
 
-            try writer.writeAll("\npub const InterruptType = enum {\n");
+            try writer.writeAll("\npub const InterruptType = enum(i8) {\n");
 
             if (cpu_type != .avr) {
                 // this is an arm machine
