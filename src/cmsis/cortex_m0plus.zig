@@ -43,12 +43,14 @@ pub fn addCoreRegisters(db: *Database, scs: Database.PeripheralIndex) !void {
             .addr_offset = 0x014,
         },
         .{
-            .name = "SHP",
-            .description = "System Handlers Priority Registers. [0] is RESERVED",
+            .name = "SHPR2",
+            .description = "System Handlers Priority Register 2",
             .addr_offset = 0x01c,
-            //.dimension = .{
-            //    .dim = 2,
-            //},
+        },
+        .{
+            .name = "SHPR3",
+            .description = "System Handlers Priority Register 3",
+            .addr_offset = 0x020,
         },
         .{
             .name = "SHCSR",
@@ -110,13 +112,24 @@ pub fn addCoreRegisters(db: *Database, scs: Database.PeripheralIndex) !void {
         .{ .name = "STKALIGN", .offset = 9, .width = 1 },
     });
 
-    const shcsr = regs.begin + 6;
+    const shpr2 = regs.begin + 5;
+    try db.addFieldsToRegister(shpr2, &.{
+        .{ .name = "SVCALLPRI", .offset = 28, .width = 4 },
+    });
+
+    const shpr3 = regs.begin + 6;
+    try db.addFieldsToRegister(shpr3, &.{
+        .{ .name = "PENDSVPRI", .offset = 20, .width = 4 },
+        .{ .name = "SYSTICKPRI", .offset = 28, .width = 4 },
+    });
+
+    const shcsr = regs.begin + 7;
     try db.addFieldsToRegister(shcsr, &.{
         .{ .name = "SVCALLPENDED", .offset = 15, .width = 1 },
     });
 
     if (db.cpu) |cpu| if (cpu.vtor_present) {
-        const vtor = regs.begin + 7;
+        const vtor = regs.begin + 8;
         try db.addFieldsToRegister(vtor, &.{.{
             .name = "TBLOFF",
             .offset = 8,

@@ -809,10 +809,6 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
     if (db.cpu) |cpu| if (cpu.name) |cpu_name|
         try writer.print("// cpu: {s}\n", .{cpu_name});
 
-    if (db.device.?.rt_import) |rt| {
-        try writer.print("\nconst rt = @import(\"{s}\");\n", .{rt});
-    }
-
     if (db.interrupts.items.len > 0 and db.cpu != null) {
         if (svd.CpuName.parse(db.cpu.?.name.?)) |cpu_type| {
             try writer.writeAll("\npub const VectorTable = extern struct {\n");
@@ -823,7 +819,7 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
             if (cpu_type != .avr) {
                 // this is an arm machine
                 try writer.writeAll(
-                    \\    initial_stack_pointer: u32,
+                    \\    initial_stack_pointer: fn () callconv(.C) void,
                     \\    Reset: InterruptVector = unhandled,
                     \\    NMI: InterruptVector = unhandled,
                     \\    HardFault: InterruptVector = unhandled,
@@ -919,6 +915,12 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
 
     if (db.registers.items.len > 0) {
         try writer.writeAll("\npub const registers = struct {\n");
+
+        if (db.device.?.rt_import) |rt| {
+            try writer.print("\nconst rt = @import(\"{s}\");\n", .{rt});
+            try writer.writeAll("pub const types = rt;\n\n");
+        }
+
         for (db.peripherals.items) |peripheral, i| {
             const peripheral_idx = @intCast(u32, i);
             const has_registers = db.registers_in_peripherals.contains(peripheral_idx);
