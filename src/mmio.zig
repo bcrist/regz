@@ -76,9 +76,19 @@ pub fn mmioInt(addr: usize, comptime size: usize, comptime T: type) *volatile Mm
     return @intToPtr(*volatile MmioInt(size, T), addr);
 }
 
+// This is only necessary because of a dubious design decision implemented
+// in zig 0.10, disallowing @bitCasting between ints and enums:
+// https://github.com/ziglang/zig/issues/3647
+inline fn fromInt(comptime T: type, value: anytype) T {
+    return switch (@typeInfo(T)) {
+        .Enum => @intToEnum(T, value),
+        else => @bitCast(T, value),
+    };
+}
+
 pub const InterruptVector = extern union {
-    C: fn () callconv(.C) void,
-    Naked: fn () callconv(.Naked) void,
+    C: *const fn () callconv(.C) void,
+    Naked: *const fn () callconv(.Naked) void,
     // Interrupt is not supported on arm
 };
 

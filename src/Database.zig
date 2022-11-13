@@ -819,7 +819,7 @@ pub fn toZig(db: *Database, out_writer: anytype) !void {
             if (cpu_type != .avr) {
                 // this is an arm machine
                 try writer.writeAll(
-                    \\    initial_stack_pointer: fn () callconv(.C) void,
+                    \\    initial_stack_pointer: *const fn () callconv(.C) void,
                     \\    Reset: InterruptVector = unhandled,
                     \\    NMI: InterruptVector = unhandled,
                     \\    HardFault: InterruptVector = unhandled,
@@ -1233,7 +1233,7 @@ fn genZigFields(
             var reset_value: u64 = ((register.reset_value orelse 0) >> @intCast(u6, expected_bit)) & mask;
 
             if (field.type_override) |type_name| {
-                try writer.print(" = @bitCast(rt.{s}, @as(u{}, {}))", .{ fmtIdChain(type_name), field.width, reset_value });
+                try writer.print(" = fromInt(rt.{s}, @as(u{}, {}))", .{ fmtIdChain(type_name), field.width, reset_value });
             } else {
                 try writer.print(" = {}", .{ reset_value });
             }
